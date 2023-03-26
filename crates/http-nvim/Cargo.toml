@@ -10,6 +10,7 @@ keywords = ["editor", "nvim", "lua"]
 crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1.0.0"
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 os_pipe = "1.1"

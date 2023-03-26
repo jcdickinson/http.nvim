@@ -79,7 +79,7 @@ local M = {}
 --- @class StringRequest : Request
 --- @field [3] string|nil the request body
 --- @field callback fun(err: nil, result: StringResponse)|fun(err: string, result: nil) the callback function
-
+--
 local function build_headers(resp)
 	local result = {}
 	for i, v in ipairs(resp:get_header_iter()) do
@@ -110,23 +110,27 @@ local function build_response(resp)
 	return values
 end
 
---- Sends a request to the server
---- @param request StringRequest
-function M.string_request(request)
-	local lib = require("http.lib")
-	local headers = {}
-
-	if request.headers then
-		for k, v in pairs(request.headers) do
+local function create_request_headers(headers)
+	local r = {}
+	if headers then
+		for k, v in pairs(headers) do
 			if type(v) == "string" then
-				table.insert(headers, { k, v })
+				table.insert(r, { k, v })
 			elseif type(v) == "table" then
 				for _, h in ipairs(v) do
-					table.insert(headers, { k, h })
+					table.insert(r, { k, h })
 				end
 			end
 		end
 	end
+	return r
+end
+
+--- Sends a request to the server
+--- @param request StringRequest
+function M.string_request(request)
+	local lib = require("http.lib")
+	local headers = create_request_headers(request.headers)
 
 	lib.string_request(function(err, resp)
 		if err then
@@ -137,6 +141,23 @@ function M.string_request(request)
 		r.body = resp.body
 		request.callback(nil, r)
 	end, request[1], request[2], headers, request[3], request.timeout, request.version)
+end
+
+--- Sends a request to the server
+--- @param request StringRequest
+function M.download_request(request, path)
+	local lib = require("http.lib")
+	local headers = create_request_headers(request.headers)
+
+	lib.string_request(function(err, resp)
+		if err then
+			request.callback(err)
+			return
+		end
+		local r = build_response(resp)
+		r.body = resp.body
+		request.callback(nil, r)
+	end, request[1], request[2], headers, request[3], request.timeout, request.version, path)
 end
 
 M.methods = util.freeze(METHODS)

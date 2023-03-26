@@ -87,5 +87,6 @@ local M = {}
 
 M.supported = mod.supported
 M.string_request = mod.string_request
+M.download_request = mod.string_request
 
 return require("http.util").freeze(M)

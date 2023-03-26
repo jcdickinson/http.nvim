@@ -10,9 +10,10 @@ use tokio::{
 struct HttpRequest {
     request: RequestBuilder,
     callback: LuaRegistryKey,
+    download_path: Option<String>,
 }
 
-async fn do_text_request(req: RequestBuilder) -> reqwest::Result<LuaHttpResponse<String>> {
+async fn do_text_request(req: RequestBuilder) -> anyhow::Result<LuaHttpResponse<String>> {
     let response = req.send().await?;
     let status_code = response.status();
     let url = response.url().clone();
@@ -26,7 +27,7 @@ async fn do_text_request(req: RequestBuilder) -> reqwest::Result<LuaHttpResponse
         .map(|(k, v)| (k.to_string(), v.as_bytes().to_vec()))
         .collect();
 
-    let body = response.text().await?;
+    let body = Some(response.text().await?);
     Ok(LuaHttpResponse {
         status_code,
         url,
@@ -38,9 +39,46 @@ async fn do_text_request(req: RequestBuilder) -> reqwest::Result<LuaHttpResponse
     })
 }
 
+async fn do_download_request(
+    req: RequestBuilder,
+    download_path: String,
+) -> anyhow::Result<LuaHttpResponse<String>> {
+    let mut response = req.send().await?;
+    let status_code = response.status();
+    let url = response.url().clone();
+    let version = response.version();
+    let content_length = response.content_length();
+    let remote_addr = response.remote_addr();
+
+    let headers = response
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.as_bytes().to_vec()))
+        .collect();
+
+    let mut file = std::fs::File::create(download_path)?;
+    while let Some(chunk) = response.chunk().await? {
+        file.write_all(chunk.as_ref())?;
+    }
+
+    Ok(LuaHttpResponse {
+        status_code,
+        url,
+        version,
+        content_length,
+        headers,
+        remote_addr,
+        body: None,
+    })
+}
+
 impl HttpRequest {
     async fn send(self) -> HttpResponse {
-        let response = do_text_request(self.request).await;
+        let response = if let Some(download_path) = self.download_path {
+            do_download_request(self.request, download_path).await
+        } else {
+            do_text_request(self.request).await
+        };
         HttpResponse {
             response,
             callback: self.callback,
@@ -49,7 +87,7 @@ impl HttpRequest {
 }
 
 struct HttpResponse {
-    response: reqwest::Result<LuaHttpResponse<String>>,
+    response: anyhow::Result<LuaHttpResponse<String>>,
     callback: LuaRegistryKey,
 }
 
@@ -60,7 +98,7 @@ struct LuaHttpResponse<T> {
     content_length: Option<u64>,
     headers: Vec<(String, Vec<u8>)>,
     remote_addr: Option<SocketAddr>,
-    body: T,
+    body: Option<T>,
 }
 
 impl LuaUserData for LuaHttpResponse<String> {
@@ -83,9 +121,7 @@ impl LuaUserData for LuaHttpResponse<String> {
         fields.add_field_method_get("remote_addr", |_, this| -> LuaResult<Option<String>> {
             Ok(this.remote_addr.map(|x| x.to_string()))
         });
-        fields.add_field_method_get("body", |_, this| -> LuaResult<String> {
-            Ok(this.body.to_string())
-        });
+        fields.add_field_method_get("body", |_, this| Ok(this.body.clone()));
     }
 
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
@@ -192,7 +228,7 @@ fn libhttp_nvim(lua: &Lua) -> LuaResult<LuaTable> {
         "string_request",
         lua.create_function(
             move |lua,
-                  (callback, method, url, headers, body, timeout, version): (
+                  (callback, method, url, headers, body, timeout, version, download_path): (
                 LuaFunction,
                 String,
                 String,
@@ -200,6 +236,7 @@ fn libhttp_nvim(lua: &Lua) -> LuaResult<LuaTable> {
                 Option<String>,
                 Option<f64>,
                 Option<u8>,
+                Option<String>,
             )|
                   -> LuaResult<()> {
                 let client = ClientBuilder::new();
@@ -223,7 +260,11 @@ fn libhttp_nvim(lua: &Lua) -> LuaResult<LuaTable> {
 
                 let callback = lua.create_registry_value(callback)?;
                 request_send
-                    .send(HttpRequest { request, callback })
+                    .send(HttpRequest {
+                        request,
+                        callback,
+                        download_path,
+                    })
                     .map_err(|_| "worker thread has panicked".to_lua_err())
             },
         )?,
