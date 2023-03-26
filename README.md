@@ -36,7 +36,7 @@ and returns a string body.
 ```lua
 local http = require("http")
 
-http.string_request(
+http.string_request({
   http.methods.POST,
   "https://www.example.com",
   "The message body", -- optional
@@ -95,5 +95,24 @@ http.string_request(
         })
     end)
   end
-)
+})
+```
+
+### download_request
+
+`download_request` is identical to `string_request`, with the addition of a
+`path` parameter, which specifies where to download the file to. Additionally,
+the `body` will not be provided in the response.
+
+```lua
+local http = require("http")
+
+http.download_request({
+  http.methods.POST,
+  "https://www.example.com",
+  "The message body",
+  callback = function(err, response)
+
+  end
+}, "/tmp/file.txt")
 ```
