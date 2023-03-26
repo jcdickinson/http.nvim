@@ -117,11 +117,13 @@ function M.string_request(request)
 	local headers = {}
 
 	if request.headers then
-		for k, v in request.headers do
+		for k, v in pairs(request.headers) do
 			if type(v) == "string" then
-				headers[k] = { v }
+				table.insert(headers, { k, v })
 			elseif type(v) == "table" then
-				headers[k] = v
+				for _, h in ipairs(v) do
+					table.insert(headers, { k, h })
+				end
 			end
 		end
 	end
@@ -139,14 +141,8 @@ end
 
 M.methods = util.freeze(METHODS)
 M.versions = util.freeze(VERSIONS)
-M.supported = false
-
-function M:__index(index)
-	if index == "supported" then
-		return require("http.lib").supported
-	else
-		return rawget(self, index)
-	end
+M.supported = function()
+	return require("http.lib").supported
 end
 
 return util.freeze(M)
