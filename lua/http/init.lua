@@ -63,23 +63,20 @@ local M = {}
 --- @field content_length integer|nil the number of bytes
 --- @field headers ResponseHeaders the response headers
 --- @field remote_addr string|nil the remote endpoint
-
---- @class StringResponse : Response
---- @fieldbody string
+--- @field body string
 
 --- @alias RequestCallback fun(err: string, result: string)
 
 --- @class Request
 --- @field [1] methods method to use
 --- @field [2] string the URL
+--- @field [3] string|nil the request body
+--- @field [4] string|nil the path to download the response to
 --- @field headers { [string]: HeaderValue | string } headers? the request headers
 --- @field timeout float the timeout in seconds
 --- @field version versions the HTTP version to use
+--- @field callback fun(err: nil, result: Response)|fun(err: string, result: nil) the callback function
 
---- @class StringRequest : Request
---- @field [3] string|nil the request body
---- @field callback fun(err: nil, result: StringResponse)|fun(err: string, result: nil) the callback function
---
 local function build_headers(resp)
 	local result = {}
 	for i, v in ipairs(resp:get_header_iter()) do
@@ -127,8 +124,8 @@ local function create_request_headers(headers)
 end
 
 --- Sends a request to the server
---- @param request StringRequest
-function M.string_request(request)
+--- @param request Request
+function M.request(request)
 	local lib = require("http.lib")
 	local headers = create_request_headers(request.headers)
 
@@ -140,25 +137,17 @@ function M.string_request(request)
 		local r = build_response(resp)
 		r.body = resp.body
 		request.callback(nil, r)
-	end, request[1], request[2], headers, request[3], request.timeout, request.version)
+	end, request[1], request[2], headers, request[3], request.timeout, request.version, request[4])
 end
 
---- Sends a request to the server
---- @param request StringRequest
+--- @deprecated use `request` instead
 function M.download_request(request, path)
-	local lib = require("http.lib")
-	local headers = create_request_headers(request.headers)
-
-	lib.string_request(function(err, resp)
-		if err then
-			request.callback(err)
-			return
-		end
-		local r = build_response(resp)
-		r.body = resp.body
-		request.callback(nil, r)
-	end, request[1], request[2], headers, request[3], request.timeout, request.version, path)
+	request[4] = path
+	M.request(request)
 end
+
+--- @deprecated use `request` instead
+M.string_request = M.request
 
 M.methods = util.freeze(METHODS)
 M.versions = util.freeze(VERSIONS)
