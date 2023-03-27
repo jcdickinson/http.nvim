@@ -22,7 +22,7 @@ local function load_module()
 
 	if not mod_ok then
 		local err = table.concat({ "libhttp_nvim not loaded", vim.inspect(mod) }, " ")
-		require("notify").error(err)
+		require("http.notify").error(err)
 		mod = { supported = false }
 		function mod.get_recv_fd()
 			return nil, err
