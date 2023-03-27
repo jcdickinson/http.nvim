@@ -68,12 +68,18 @@ local function load_module()
 			return
 		end
 
-		local ok, cb = pcall(mod.recv)
-		if ok then
-			cb()
-		else
-			require("http.notify").error("recv failed", cb)
-			pipe:close()
+		while true do
+			local ok, cb = pcall(mod.recv)
+			if ok then
+				if cb then
+					cb()
+				else
+					break
+				end
+			else
+				require("http.notify").error("recv failed", cb)
+				pipe:close()
+			end
 		end
 	end
 	pipe:read_start(recv)
