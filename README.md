@@ -2,6 +2,8 @@
 
 A HTTP client for your neovim plugin needs.
 
+Not supported on Windows: https://github.com/jcdickinson/http.nvim/issues/1
+
 ## Contributing
 
 Feel free to create an issue/PR if you want to see anything else implemented.
